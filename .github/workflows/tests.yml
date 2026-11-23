@@ -30,7 +30,6 @@ jobs:
       APP_ENV: testing
       DB_CONNECTION: pgsql
       DB_HOST: 127.0.0.1
-      DB_PORT: ${{ job.services.postgres.ports[5432] }}
       DB_DATABASE: zaza_test
       DB_USERNAME: zaza_test
       DB_PASSWORD: zaza_ci_only
@@ -63,4 +62,6 @@ jobs:
           npm run build
 
       - name: Ejecutar PHPUnit con PostgreSQL
+        env:
+          DB_PORT: ${{ job.services.postgres.ports[5432] }}
         run: vendor/bin/phpunit --do-not-cache-result --fail-on-skipped

@@ -79,7 +79,8 @@ class PaymentReconciliation
 
         $order->update([
             'estado' => 'PAGADO', 'approved_payment_id' => $status->id, 'medio_pago' => $status->method,
-            'forma_pago' => $status->type, 'fecha_pago' => $status->approvedAt ?? now(), 'stock_reserved_until' => null,
+            'forma_pago' => $status->type, 'fecha_pago' => $status->approvedAt?->setTimezone(config('app.timezone')) ?? now(),
+            'stock_reserved_until' => null,
         ]);
         $order->loadMissing('user');
         // The database queue row commits with this payment, so a worker can only see it after commit.

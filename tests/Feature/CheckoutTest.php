@@ -28,6 +28,7 @@ class CheckoutTest extends PostgresTestCase
 
     public function test_checkout_uses_cop_snapshots_and_recovers_a_lost_preference_without_reserving_twice(): void
     {
+        $this->freezeSecond();
         Http::fake(['https://api.mercadopago.com/checkout/preferences' => Http::sequence()
             ->pushStatus(503)->push($this->preference())]);
         [$user, $variant] = $this->cart();
@@ -35,6 +36,7 @@ class CheckoutTest extends PostgresTestCase
         $this->actingAs($user)->get('/checkout')->assertOk()->assertSee('Pagar con Mercado Pago')->assertSee('$190.000 COP');
         $this->post('/checkout', $shipping + ['total' => 1])->assertRedirect('/checkout');
         $order = Order::sole();
+        $this->assertSame(now()->addMinutes(30)->timestamp, $order->stock_reserved_until->timestamp);
         $this->assertNull($order->provider_preference_id);
         $this->assertSame(0, $variant->fresh()->stock);
 
@@ -98,13 +100,15 @@ class CheckoutTest extends PostgresTestCase
 
     public function test_pending_payment_can_be_approved_and_duplicates_enqueue_one_confirmation(): void
     {
+        $this->freezeSecond();
         [$user, $variant] = $this->cart();
         $order = $this->order($user);
+        $approvedAt = now()->utc();
         Http::fake([
             'https://api.mercadolibre.com/users/me' => Http::response(['id' => 72]),
             'https://api.mercadopago.com/v1/payments/100' => Http::sequence()
                 ->push($this->payment($order, 'pending'))
-                ->push($this->payment($order))
+                ->push($this->payment($order, extra: ['date_approved' => $approvedAt->toIso8601String()]))
                 ->push($this->payment($order)),
             'https://api.mercadopago.com/v1/payments/101' => Http::response($this->payment($order, 'rejected', '101')),
             'https://api.mercadopago.com/v1/payments/102' => Http::response($this->payment($order, 'approved', '102')),
@@ -118,6 +122,7 @@ class CheckoutTest extends PostgresTestCase
 
         $this->assertSame('PAGADO', $order->fresh()->estado);
         $this->assertSame('100', $order->fresh()->approved_payment_id);
+        $this->assertSame($approvedAt->timestamp, $order->fresh()->fecha_pago->timestamp);
         $this->assertSame(0, $variant->fresh()->stock);
         $this->assertDatabaseCount('jobs', 1);
         $this->assertDatabaseCount('payments', 3);

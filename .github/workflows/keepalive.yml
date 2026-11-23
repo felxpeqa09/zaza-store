@@ -1,0 +1,18 @@
+name: Keep-alive de PostgreSQL
+on:
+  schedule:
+    - cron: '23 */8 * * *'
+  workflow_dispatch:
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Consultar salud de la base de datos
+        env:
+          HEALTH_TOKEN: ${{ secrets.HEALTH_TOKEN }}
+          APP_URL: ${{ secrets.APP_URL }}
+        run: |
+          test -n "$HEALTH_TOKEN"
+          test -n "$APP_URL"
+          curl --fail --silent --show-error --max-time 30 \
+            --header "X-Health-Token: $HEALTH_TOKEN" "${APP_URL%/}/health/db"
